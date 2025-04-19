@@ -5,9 +5,11 @@ import './MapPerformanceTest.css';
 // 東京中心座標
 const TOKYO_CENTER = new L.LatLng(35.681236, 139.767125);
 // 表示する点の数
-const POINT_COUNT = 1000;
+const POINT_COUNT = 10000;
 // 更新間隔（ミリ秒）
 const UPDATE_INTERVAL = 100;
+// レンダリング間引き (mod)
+const RENDER_MOD = 1;
 
 interface MovingPoint {
   marker: L.CircleMarker;
@@ -48,7 +50,7 @@ export default function MapPerformanceTest() {
       }).addTo(map);
 
       // 初速度と向き
-      const speed = 1 + Math.random() * 9; // 10〜100 m/interval
+      const speed = 1 + Math.random() * 9; // 1〜10 m/interval
       const heading = Math.random() * 2 * Math.PI;
 
       points.push({ marker, speed, heading });
@@ -56,8 +58,17 @@ export default function MapPerformanceTest() {
     pointsRef.current = points;
 
     // アニメーションループ
+    let perFrameTime = performance.now();
     const timer = setInterval(() => {
+      const currentFrameTime = performance.now();
+      const intervalTime = currentFrameTime - perFrameTime;
+      perFrameTime = currentFrameTime;
+      let total = 0;
+
+      let c = 0;
       pointsRef.current.forEach(p => {
+        const startTime = performance.now();
+
         const latlng = p.marker.getLatLng();
         // メートル→度換算
         const dLat = p.speed * degPerMeterLat * Math.cos(p.heading);
@@ -71,11 +82,21 @@ export default function MapPerformanceTest() {
           newLng = (TOKYO_CENTER.lng);
         }
 
-        p.marker.setLatLng([newLat, newLng]);
-
         // ランダムで向きをわずかに変える
-        p.heading += (Math.random() - 0.5) * 0.2;
+        const directionFactor = (Math.random() - 0.5) * 0.2;
+
+        const endTime = performance.now();
+        total += endTime - startTime;
+
+        // 更新
+        if ((c++ % RENDER_MOD) === 0) {
+          p.marker.setLatLng([newLat, newLng]);
+          p.heading += directionFactor;
+        }
       });
+
+      const leafletRenderTime = intervalTime - UPDATE_INTERVAL - total;
+      console.info(`leaflet render time: render=${leafletRenderTime}, total=${total}`);
     }, UPDATE_INTERVAL);
 
     return () => {

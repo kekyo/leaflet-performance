@@ -1,54 +1,31 @@
-# React + TypeScript + Vite
+# leaflet test
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+* Intel Core i9-12900KS / GeForce RTX 3090 / Ubuntu 22.04LTS / Firefox 137.0.2 (64-bit)
+* 計算時間は大体1ms/10000pointsを超えるぐらいなので、100000pointsでもそれほど負荷に影響はない。
 
-Currently, two official plugins are available:
+## 10000points
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+* `UPDATE_INTERVAL=100`, `RENDER_MOD=1`: 問題ない。レンダリング遅延なし。計算時間は<=1ms
+  ![test10000.png](images/test10000.png)
 
-## Expanding the ESLint configuration
+## 50000points
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+* `UPDATE_INTERVAL=100`, `RENDER_MOD=1`: 遅くなった。レンダリングは350msぐらい。計算時間は≈7ms
+  ![test50000_1.png](images/test50000_1.png)
+* `UPDATE_INTERVAL=100`, `RENDER_MOD=1`: 拡大すると多少速くなる。レンダリングは160msぐらい。計算時間は≈7ms
+  ![test50000_2.png](images/test50000_2.png)
+* `UPDATE_INTERVAL=100`, `RENDER_MOD=2`: 間引きすると多少速くなる。レンダリングは200msぐらい。計算時間は≈7ms
+  ![test50000_3.png](images/test50000_3.png)
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+## 100000points
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+* `UPDATE_INTERVAL=100`, `RENDER_MOD=1`: 遅い。レンダリングは850msぐらい。計算時間は≈13ms
+  ![test100000_1.png](images/test100000_1.png)
+* `UPDATE_INTERVAL=100`, `RENDER_MOD=1`: 拡大すると多少速くなる。レンダリングは380msぐらい。計算時間は≈13ms
+  ![test100000_2.png](images/test100000_2.png)
+* `UPDATE_INTERVAL=100`, `RENDER_MOD=2`: 間引きすると多少速くなる。レンダリングは500msぐらい。計算時間は≈13ms
+  ![test100000_3.png](images/test100000_3.png)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+# License
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+CC0
