@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import L from 'leaflet';
-import './MapPerformanceTest.css';
+import maplibregl from 'maplibre-gl';
+//import 'maplibre-gl/dist/maplibre-gl.css';
 
-// 東京中心座標
-const TOKYO_CENTER = new L.LatLng(35.681236, 139.767125);
+// 東京中心座標 ([lng, lat] 順)
+const TOKYO_CENTER: [number, number] = [139.767125, 35.681236];
 // 表示する点の数
 const POINT_COUNT = 10000;
 // 更新間隔（ミリ秒）
@@ -12,98 +12,137 @@ const UPDATE_INTERVAL = 100;
 const RENDER_MOD = 1;
 
 interface MovingPoint {
-  marker: L.CircleMarker;
-  // 移動速度（m/interval）
-  speed: number;
-  // 進行方向（ラジアン）
-  heading: number;
+  speed: number;        // 移動速度（m/interval）
+  heading: number;      // 進行方向（ラジアン）
 }
 
-const degPerMeterLat = 1 / 111000; // 緯度1mあたりの度
+// 緯度1mあたりの度
+const degPerMeterLat = 1 / 111000;
+// 経度1mあたりの度（緯度による補正）
 const degPerMeterLon = (lat: number) => 1 / (111000 * Math.cos(lat * Math.PI / 180));
 
 export default function MapPerformanceTest() {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const pointsRef = useRef<MovingPoint[]>(null!);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const pointsRef = useRef<MovingPoint[]>([]);
+  const featureCollectionRef = useRef<GeoJSON.FeatureCollection<GeoJSON.Point>>({
+    type: 'FeatureCollection',
+    features: []
+  });
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (mapRef.current) return;
 
-    // 地図初期化
-    const map = L.map('map', {
+    // MapLibre 地図初期化
+    const map = new maplibregl.Map({
+      container: "map",
+      style: 'https://gsi-cyberjapan.github.io/gsivectortile-mapbox-gl-js/std.json',
+      //style: 'https://demotiles.maplibre.org/style.json',
       center: TOKYO_CENTER,
       zoom: 15,
+      maxZoom: 17,
     });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map);
+    mapRef.current = map;
 
     // ランダムな点の生成
     const points: MovingPoint[] = [];
+    const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
+
     for (let i = 0; i < POINT_COUNT; i++) {
       // 東京中心から最大0.005度（約550m）以内にランダム配置
-      const lat = TOKYO_CENTER.lat + (Math.random() - 0.5) * 0.01;
-      const lng = TOKYO_CENTER.lng + (Math.random() - 0.5) * 0.01;
-      const marker = L.circleMarker([lat, lng], {
-        radius: 4,
-        color: 'red',
-      }).addTo(map);
+      const lat = TOKYO_CENTER[1] + (Math.random() - 0.5) * 0.01;
+      const lng = TOKYO_CENTER[0] + (Math.random() - 0.5) * 0.01;
+
+      features.push({
+        id: `id${i}`,
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+        properties: {}
+      });
 
       // 初速度と向き
       const speed = 1 + Math.random() * 9; // 1〜10 m/interval
       const heading = Math.random() * 2 * Math.PI;
 
-      points.push({ marker, speed, heading });
+      points.push({ speed, heading });
     }
+
+    featureCollectionRef.current = {
+      type: 'FeatureCollection',
+      features
+    };
     pointsRef.current = points;
 
+    // ソースとレイヤーの追加
+    map.on('load', () => {
+      map.addSource('points', {
+        type: 'geojson',
+        data: featureCollectionRef.current
+      });
+
+      map.addLayer({
+        id: 'points-layer',
+        type: 'circle',
+        source: 'points',
+        paint: {
+          'circle-radius': 4,
+          'circle-color': 'red'
+        }
+      });
+    });
+
     // アニメーションループ
-    let perFrameTime = performance.now();
+    let prevFrameTime = performance.now();
     const timer = setInterval(() => {
-      const currentFrameTime = performance.now();
-      const intervalTime = currentFrameTime - perFrameTime;
-      perFrameTime = currentFrameTime;
-      let total = 0;
+      const now = performance.now();
+      const intervalTime = now - prevFrameTime;
+      prevFrameTime = now;
+      let totalCalc = 0;
+      let counter = 0;
 
-      let c = 0;
-      pointsRef.current.forEach(p => {
-        const startTime = performance.now();
+      const fc = featureCollectionRef.current;
+      fc.features.forEach((feature, idx) => {
+        const startCalc = performance.now();
+        const [lng, lat] = feature.geometry.coordinates;
 
-        const latlng = p.marker.getLatLng();
         // メートル→度換算
-        const dLat = p.speed * degPerMeterLat * Math.cos(p.heading);
-        const dLng = p.speed * degPerMeterLon(latlng.lat) * Math.sin(p.heading);
-        let newLat = latlng.lat + dLat;
-        let newLng = latlng.lng + dLng;
+        const dLat = pointsRef.current[idx].speed * degPerMeterLat * Math.cos(pointsRef.current[idx].heading);
+        const dLng = pointsRef.current[idx].speed * degPerMeterLon(lat) * Math.sin(pointsRef.current[idx].heading);
+        let newLat = lat + dLat;
+        let newLng = lng + dLng;
 
-        // 範囲外になったら東京中心に戻す
-        if (Math.abs(newLat - TOKYO_CENTER.lat) > 0.02 || Math.abs(newLng - TOKYO_CENTER.lng) > 0.02) {
-          newLat = (TOKYO_CENTER.lat);
-          newLng = (TOKYO_CENTER.lng);
+        // 範囲外なら東京中心にリセット
+        if (Math.abs(newLat - TOKYO_CENTER[1]) > 0.02 || Math.abs(newLng - TOKYO_CENTER[0]) > 0.02) {
+          newLat = TOKYO_CENTER[1];
+          newLng = TOKYO_CENTER[0];
         }
 
         // ランダムで向きをわずかに変える
         const directionFactor = (Math.random() - 0.5) * 0.2;
+        pointsRef.current[idx].heading += directionFactor;
 
-        const endTime = performance.now();
-        total += endTime - startTime;
+        const endCalc = performance.now();
+        totalCalc += endCalc - startCalc;
 
-        // 更新
-        if ((c++ % RENDER_MOD) === 0) {
-          p.marker.setLatLng([newLat, newLng]);
-          p.heading += directionFactor;
+        // レンダリング間引き
+        if ((counter++ % RENDER_MOD) === 0) {
+          feature.geometry.coordinates = [newLng, newLat];
         }
       });
 
-      const leafletRenderTime = intervalTime - UPDATE_INTERVAL - total;
-      console.info(`leaflet render time: render=${leafletRenderTime}, total=${total}`);
+      // データ更新
+      const source = map.getSource('points') as maplibregl.GeoJSONSource;
+      source.setData(fc);
+
+      const renderTime = intervalTime - UPDATE_INTERVAL - totalCalc;
+      console.info(`MapLibre render time: render=${renderTime}, totalCalc=${totalCalc}`);
     }, UPDATE_INTERVAL);
 
     return () => {
       clearInterval(timer);
-      map.remove();
+      mapRef.current?.remove();
+      mapRef.current = null;
     };
-  }, [pointsRef]);
+  }, []);
 
-  return <div id="map" ref={mapRef} />;
+  return <div id="map" style={{ width: "100%", height: "100vh" }} />;
 }
