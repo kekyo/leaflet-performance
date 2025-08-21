@@ -1,3 +1,15 @@
+# MapLibraとleafletのパフォーマンス比較
+
+結論:
+
+* 両方ともJavaScriptとは思えないほど速いが、ポイント数が非常識なほど多いと相応に遅くなる。
+  したがって、多ポイント数を扱う場合は、アーキテクチャ上の軽減設計が必要になる。
+  （例えば、ズームに応じて実際に表示するポイント数を減らしたり、更新頻度を遅くするなど。 [FlightRader24](https://www.flightradar24.com/) が参考になると思う）
+* MapLibraはWebGL対応で、多ポイント数でもJavaScriptの実行負荷が軽い（画面描画がJavaScriptに影響しにくい）。
+* MapLibraはベクターデータに対応。現在は出来るかどうかわからないが、Z軸座標を供給して高低差を3D表示するなどの展望がありえる。また、ラスタータイルを使うこともできるので、2D-->3Dへの段階的な移行が可能。しかしleafletはラスタータイルのみ対応。
+* MapLibraは積極的にメンテナンスされている。
+* 新規に開発するなら、MapLibraが良いと思う。
+
 # leaflet test
 
 * Intel Core i9-12900KS / GeForce RTX 3090 / Ubuntu 22.04LTS / Firefox 137.0.2 (64-bit)
